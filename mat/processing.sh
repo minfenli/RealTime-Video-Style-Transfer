@@ -1,0 +1,1 @@
+python3 inference.py --variant=mobilenetv3 --checkpoint=./checkpoints/rvm_mobilenetv3 --device=cuda --input-source=./inputs/butter.mp4 --output-type=video
