@@ -33,7 +33,7 @@ print('Loaded matting model "{}"'.format(mat_checkpoint_path))
 
 style_img = "./style_transfer/inputs/styles/" + "pencil.png"#  "The_Great_Wave_off_Kanagawa.jpg" #"starry_night.jpg" # "pencil.png" # "mosaic_2.jpg"
 style_checkpoint_path = "./style_transfer/test/Model/style_net-TIP-final.pth"
-style_img_resize_ratio = 2
+style_img_resize_ratio = 1
 
 use_Global = False
 
@@ -66,9 +66,6 @@ refresh_background_frequency = 1      # frequency for updating the background
 strict_alpha = False                  # alpha 0~1 values will be round to 0 or 1
 inverse = False                       # inverse style transfer from background to people
 
-
-frame_counter = 0
-frame_buffer = []
 
 ## --------------------------------------------
 ##  Functions for processing
@@ -116,7 +113,10 @@ def frame_style_transfer(frame):
 ## --------------------------------------------
 
 def run():
-    global use_Global, resize_ratio, frame_counter, frame_buffer, sample_frames, sample_frequency, refresh_background_momentum, refresh_background_frequency, strict_alpha, inverse
+    global use_Global, resize_ratio, sample_frames, sample_frequency, refresh_background_momentum, refresh_background_frequency, strict_alpha, inverse
+
+    frame_counter = 0
+    frame_buffer = []
 
     cap = cv2.VideoCapture(0)
     print("Open Camera")
@@ -142,12 +142,20 @@ def run():
             # extract the foreground and the background
             
             foreground = (image_rgb_np * alpha).astype('uint8')
-            
-            if frame_counter % refresh_background_frequency == 0:
-                if frame_counter == 0:
-                    background = (image_rgb_np * (1-alpha)).astype('uint8')
-                else:
-                    background = ((background*refresh_background_momentum + image_rgb_np * (1-alpha) * (1-refresh_background_momentum))).astype('uint8')
+
+            if inverse:
+                background = (image_rgb_np * (1-alpha)).astype('uint8')
+            else:
+                if frame_counter % refresh_background_frequency == 0:
+                    if frame_counter == 0:
+                        background = (image_rgb_np * (1-alpha)).astype('uint8')
+                        old_alpha = alpha
+                    else:
+                        old_background = background*refresh_background_momentum*(1-old_alpha)
+                        new_background = image_rgb_np * (1-alpha) * ((1-refresh_background_momentum)*(1-old_alpha) + old_alpha)
+                        background = (old_background + new_background).astype('uint8')
+                        old_alpha = alpha
+                        # background = ((background*refresh_background_momentum + image_rgb_np * (1-alpha) * (1-refresh_background_momentum))).astype('uint8')
 
             # initialize the global features if "use_Global"
 
