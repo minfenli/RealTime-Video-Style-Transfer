@@ -433,4 +433,11 @@ def run_virtual_camera(device):
             cv2.destroyAllWindows()
 
 if __name__ == '__main__':
-    run()
+    import argparse
+    parser = argparse.ArgumentParser(description='RealTime Style Transfer from Camera Inputs')
+    parser.add_argument("--virtual_camera", help="Send the results to the virtual camera", action="store_true")
+    args = parser.parse_args()
+    if args.virtual_camera:
+        run_virtual_camera('/dev/video2')
+    else:
+        run()
