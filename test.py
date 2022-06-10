@@ -64,13 +64,13 @@ sample_frames = 20                    # not necessary if use_Global==False
 sample_frequency = 1                  # not necessary if use_Global==False
 
 strict_alpha = False                  # alpha 0~1 values will be round to 0 or 1
-inverse = True                        # inverse style transfer from background to people
+inverse = False                       # inverse style transfer from background to people
 restore_foreground_resolution = True  # restore resolution of foreground back to carema input size
 
 denoise = True                        # doing denoise that ignore small pixel value change
 inpaint = True                        # doing inpaint for less ringing effects or artifacts
 
-style_transfer = False                # only matting if style_transfer = False
+style_transfer = True                 # only matting if style_transfer = False
 
 print_fps = False                     # print fps
 
@@ -191,7 +191,12 @@ def run():
 
                 if not style_transfer:
                     # foreground as the matting result     
-                    transfer_result = foreground
+                    if restore_foreground_resolution:
+                        alpha_origin_size = transform.resize(alpha, (frame.shape[0], frame.shape[1]))
+                        image_rgb_np_origin_size = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        transfer_result = (alpha_origin_size*image_rgb_np_origin_size).astype('uint8')
+                    else:
+                        transfer_result = foreground
                 else:
                     if inpaint and not inverse:
                         background = frame_inpainting(image_rgb_np, alpha).astype('uint8')
@@ -288,7 +293,7 @@ def run_virtual_camera(device):
         print("Error when getting size of a frame")
         return
 
-    if restore_foreground_resolution and not only_matting:
+    if restore_foreground_resolution and style_transfer:
         width, height = frame.shape[1], frame.shape[0]
     else:
         width, height = frame.shape[1]//camera_resize_ratio, frame.shape[0]//camera_resize_ratio
@@ -348,8 +353,13 @@ def run_virtual_camera(device):
                     foreground = (image_rgb_np * alpha).astype('uint8')
 
                     if not style_transfer:
-                        # foreground as the matting result     
-                        transfer_result = foreground
+                        # foreground as the matting result 
+                        if restore_foreground_resolution:
+                            alpha_origin_size = transform.resize(alpha, (frame.shape[0], frame.shape[1]))
+                            image_rgb_np_origin_size = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                            transfer_result = (alpha_origin_size*image_rgb_np_origin_size).astype('uint8')
+                        else:
+                            transfer_result = foreground
                     else:
                         if inpaint and not inverse:
                             background = frame_inpainting(image_rgb_np, alpha).astype('uint8')
