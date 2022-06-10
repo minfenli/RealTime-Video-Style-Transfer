@@ -1,5 +1,6 @@
 import torch 
 import cv2
+import numpy as np
 
 class ReshapeTool():
     def __init__(self):
@@ -53,5 +54,8 @@ def transform_image(img):
     return img.unsqueeze(0)
 
 def transform_back_image(img):
-    img = img.clamp(0, 1)[0,:,:,:] # * 255
+    img = img[0].clamp(0, 1) # * 255
     return img
+
+def get_fps(times):
+    return np.round(1/np.mean(times), 2)
