@@ -1,0 +1,1 @@
+sudo modprobe -r v4l2loopback && sudo modprobe v4l2loopback video_nr=2 card_label="Virtual" exclusive_caps=1
