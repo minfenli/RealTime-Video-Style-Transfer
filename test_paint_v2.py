@@ -98,7 +98,7 @@ refresh_background_frequency = 1      # frequency for updating the background
 
 strict_alpha = False                 # alpha 0~1 values will be round to 0 or 1
 inverse = False                       # inverse style transfer from background to people
-
+inpaint = True
 
 ## --------------------------------------------
 ##  Functions for processing
@@ -180,27 +180,6 @@ def run():
             frame_resize = cv2.resize(frame, (frame.shape[1]//camera_resize_ratio, frame.shape[0]//camera_resize_ratio), cv2.INTER_AREA)
             image_rgb_np = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2RGB)
 
-
-            # calculate the alpha per pixel for matting
-            # if frame_counter > 0:
-            #     image_int, ori_int = image_rgb_np.astype('int'), ori.astype('int')
-            #     diff = np.abs(image_int - ori_int)
-            #     r_mask = (diff[:, :, 0]>0) & (diff[:, :, 0]<3)
-            #     g_mask = (diff[:, :, 1]>0) & (diff[:, :, 1]<3)
-            #     b_mask = (diff[:, :, 2]>0) & (diff[:, :, 2]<3)
-            #     t_mask = (r_mask | g_mask | b_mask) * (~(r_mask & g_mask & b_mask))
-            #     image_rgb_np[t_mask] = ori[t_mask]
-            #     noise = np.abs(image_int - ori_int).astype('uint8')
-            #     cv2.imshow("difference", t_mask.astype('uint8')*255)
-            #     cv2.imshow("noise", noise.astype('uint8')*255)
-
-                # image_rgb_np[np.abs(image_rgb_np - ori) < 5] = ori[np.abs(image_rgb_np - ori) < 5]
-                # diff = np.abs(image_rgb_np - ori).astype('uint8')
-                # image_rgb_np = image_rgb_np.astype('uint8')
-
-                # diff = np.abs(image_rgb_np - ori)/5.
-                # diff[diff > 1] = 1
-                # image_rgb_np = ori * (1-diff) + image_rgb_np * (diff)
             alpha = frame_matting(image_rgb_np)
             
             if strict_alpha:
@@ -211,9 +190,7 @@ def run():
 
             foreground = (image_rgb_np * alpha).astype('uint8')
 
-            if inverse:
-                background = (image_rgb_np * (1-alpha)).astype('uint8')
-            else:
+            if inpaint:
                 if frame_counter % refresh_background_frequency == 0:
                     if frame_counter == 0:
                         background = frame_inpainting(image_rgb_np, alpha).astype('uint8')
@@ -223,6 +200,8 @@ def run():
                         background = frame_inpainting(image_rgb_np, alpha).astype('uint8')
                         old_alpha = alpha
                         # background = ((background*refresh_background_momentum + image_rgb_np * (1-alpha) * (1-refresh_background_momentum))).astype('uint8')
+            else:
+                background = (image_rgb_np * (1-alpha)).astype('uint8')
 
             # initialize the global features if "use_Global"
 
@@ -232,11 +211,6 @@ def run():
                 else:
                     frame_global_sample([background])
             
-            # # Dilating painting 
-            # frame_list = np.concatenate([image_rgb_np[None, ...], image_rgb_np[None, ...]])
-            # mask_list = np.concatenate([alpha[None, ...], alpha[None, ...]])
-            # painted_image = frame_inpainting(frame_list, mask_list)
-            # background = painted_image.astype('uint8')
 
             # fuse the origin frame with the style transfer result
 
@@ -250,9 +224,11 @@ def run():
             # display the frame
 
             image_bgr_np=cv2.cvtColor(transfer_result, cv2.COLOR_RGB2BGR)
-            show_background=cv2.cvtColor(background, cv2.COLOR_RGB2BGR)
             cv2.imshow("style transfer", image_bgr_np)
-            cv2.imshow("original background", show_background)
+
+            if inpaint:
+                show_background=cv2.cvtColor(background, cv2.COLOR_RGB2BGR)
+                cv2.imshow("Padded background", show_background)
 
             # store the frame and calculate the global features if "use_Global" 
             if use_Global and frame_counter%sample_frequency == 0:
