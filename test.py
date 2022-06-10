@@ -49,7 +49,7 @@ style = cv2.resize(style, (style.shape[1]//style_img_resize_ratio, style.shape[0
 style_fname = os.path.split(style_img)[1]
 print('Opened style image "{}"'.format(style_fname))
 
-style_framework = Stylization(style_checkpoint_path, device, use_Global)
+style_framework = Stylization(style_checkpoint_path, device=="cuda", use_Global)
 style_framework.prepare_style(style)
 
 print('Loaded style framework "{}"'.format(style_checkpoint_path))
@@ -78,7 +78,7 @@ print_fps = False                     # print fps
 ##  Functions for processing
 ## --------------------------------------------
 
-bgr = torch.tensor([.6, 1, .47]).view(3, 1, 1).cuda()  # Green background.
+bgr = torch.tensor([.6, 1, .47]).view(3, 1, 1).cuda() if device=="cuda" else torch.tensor([.6, 1, .47]).view(3, 1, 1) # Green background.
 rec = [None] * 4                                       # Initial recurrent states.
 downsample_ratio = 1  
 
@@ -91,7 +91,7 @@ def frame_matting(frame):
         frame = numpy2tensor(frame).to(device)
         src = transform_image(frame)
         
-        fgr, pha, *rec = matting_model(src.cuda(), *rec, downsample_ratio)  # Cycle the recurrent states.
+        fgr, pha, *rec = matting_model(src.cuda() if device=="cuda" else src, *rec, downsample_ratio)  # Cycle the recurrent states.
         # com = fgr.squeeze(0) * pha + bgr.squeeze(0) * (1 - pha)           # Composite to green background. 
         
         frame_result = transform_back_image(pha)
