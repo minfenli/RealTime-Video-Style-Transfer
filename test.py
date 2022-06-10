@@ -64,13 +64,15 @@ sample_frames = 20                    # not necessary if use_Global==False
 sample_frequency = 1                  # not necessary if use_Global==False
 
 strict_alpha = False                  # alpha 0~1 values will be round to 0 or 1
-inverse = False                       # inverse style transfer from background to people
+inverse = True                        # inverse style transfer from background to people
 restore_foreground_resolution = True  # restore resolution of foreground back to carema input size
 
 denoise = True                        # doing denoise that ignore small pixel value change
 inpaint = True                        # doing inpaint for less ringing effects or artifacts
 
-style_transfer = True                 # only matting if style_transfer = False
+style_transfer = False                # only matting if style_transfer = False
+
+print_fps = False                     # print fps
 
 ## --------------------------------------------
 ##  Functions for processing
@@ -135,7 +137,7 @@ def frame_inpainting(frame, mask):
 ## --------------------------------------------
 
 def run():
-    global use_Global, resize_ratio, sample_frames, sample_frequency, strict_alpha, inverse, restore_foreground_resolution, denoise, style_transfer, inpaint
+    global use_Global, resize_ratio, sample_frames, sample_frequency, strict_alpha, inverse, restore_foreground_resolution, denoise, style_transfer, inpaint, print_fps
 
     frame_counter = 0
     frame_buffer = []
@@ -160,7 +162,7 @@ def run():
 
                 # denoise filter
 
-                if denoise and style_transfer:
+                if denoise:
                     if frame_counter != 0:
                         diff = np.sum(np.abs(image_rgb_np.astype('int')-image_rgb_np_old.astype('int')), axis = 2)/24.
                         diff[diff > 1] = 1
@@ -191,7 +193,7 @@ def run():
                     # foreground as the matting result     
                     transfer_result = foreground
                 else:
-                    if inpaint:
+                    if inpaint and not inverse:
                         background = frame_inpainting(image_rgb_np, alpha).astype('uint8')
                     else:
                         background = (image_rgb_np * (1-alpha)).astype('uint8')
@@ -238,12 +240,12 @@ def run():
                 frame_counter += 1
 
                 # calculate fps
-
-                end = time.time()
-                computing_times.append(end - start)
-                if len(computing_times) > 10:
-                    computing_times.pop(0)
-                print(get_fps(computing_times))
+                if print_fps:
+                    end = time.time()
+                    computing_times.append(end - start)
+                    if len(computing_times) > 10:
+                        computing_times.pop(0)
+                    print(get_fps(computing_times))
 
             else:
                 print("Something went wrong on the camera")
@@ -276,7 +278,7 @@ def get_camera_frame():
 
 
 def run_virtual_camera(device):
-    global use_Global, resize_ratio, sample_frames, sample_frequency, strict_alpha, inverse, restore_foreground_resolution, denoise, style_transfer, inpaint
+    global use_Global, resize_ratio, sample_frames, sample_frequency, strict_alpha, inverse, restore_foreground_resolution, denoise, style_transfer, inpaint, print_fps
 
     import pyvirtualcam
 
@@ -318,7 +320,7 @@ def run_virtual_camera(device):
 
                     # denoise filter
 
-                    if denoise and style_transfer:
+                    if denoise:
                         if frame_counter != 0:
                             diff = np.sum(np.abs(image_rgb_np.astype('int')-image_rgb_np_old.astype('int')), axis = 2)/24.
                             diff[diff > 1] = 1
@@ -349,7 +351,7 @@ def run_virtual_camera(device):
                         # foreground as the matting result     
                         transfer_result = foreground
                     else:
-                        if inpaint:
+                        if inpaint and not inverse:
                             background = frame_inpainting(image_rgb_np, alpha).astype('uint8')
                         else:
                             background = (image_rgb_np * (1-alpha)).astype('uint8')
@@ -395,6 +397,14 @@ def run_virtual_camera(device):
 
                     frame_counter += 1
 
+                    # calculate fps
+                    if print_fps:
+                        end = time.time()
+                        computing_times.append(end - start)
+                        if len(computing_times) > 10:
+                            computing_times.pop(0)
+                        print(get_fps(computing_times))
+
                     cam.send(transfer_result)
                     cam.sleep_until_next_frame()
 
@@ -411,4 +421,4 @@ def run_virtual_camera(device):
             print("Exception!!")
             cap.release()
             cv2.destroyAllWindows()
-    
+
