@@ -276,7 +276,7 @@ def get_camera_frame():
 
 
 def run_virtual_camera(device):
-    global use_Global, resize_ratio, sample_frames, sample_frequency, strict_alpha, inverse, restore_foreground_resolution, denoise, style_transfer
+    global use_Global, resize_ratio, sample_frames, sample_frequency, strict_alpha, inverse, restore_foreground_resolution, denoise, style_transfer, inpaint
 
     import pyvirtualcam
 
