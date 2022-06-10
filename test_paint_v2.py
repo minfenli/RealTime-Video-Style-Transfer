@@ -180,6 +180,19 @@ def run():
             frame_resize = cv2.resize(frame, (frame.shape[1]//camera_resize_ratio, frame.shape[0]//camera_resize_ratio), cv2.INTER_AREA)
             image_rgb_np = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2RGB)
 
+            # calculate the alpha per pixel for matting
+            # if frame_counter > 0:
+            #     image_int, ori_int = image_rgb_np.astype('int'), ori.astype('int')
+            #     diff = np.abs(image_int - ori_int)
+            #     r_mask = (diff[:, :, 0]>0) & (diff[:, :, 0]<3)
+            #     g_mask = (diff[:, :, 1]>0) & (diff[:, :, 1]<3)
+            #     b_mask = (diff[:, :, 2]>0) & (diff[:, :, 2]<3)
+            #     t_mask = (r_mask | g_mask | b_mask) * (~(r_mask & g_mask & b_mask))
+            #     image_rgb_np[t_mask] = ori[t_mask]
+            #     noise = np.abs(image_int - ori_int).astype('uint8')
+            #     cv2.imshow("difference", t_mask.astype('uint8')*255)
+            #     cv2.imshow("noise", noise.astype('uint8')*255)
+
             alpha = frame_matting(image_rgb_np)
             
             if strict_alpha:
