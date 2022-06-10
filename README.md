@@ -27,7 +27,7 @@ python test.py
 
 We use **pyvirtualcam** to create a virtual camera if you want to use this module on Google Meet. 
 
-The package works on Windows, macOS, and Linux, but we only test on Ubuntu.
+The package works on Windows, macOS, and Linux, but we only test on Ubuntu 20.04.3 LTS.
 
 ### Python Package
 
