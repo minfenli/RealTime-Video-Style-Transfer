@@ -422,3 +422,5 @@ def run_virtual_camera(device):
             cap.release()
             cv2.destroyAllWindows()
 
+if __name__ == '__main__':
+    run()
