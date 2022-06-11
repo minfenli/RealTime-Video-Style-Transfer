@@ -61,8 +61,12 @@ sudo apt install v4l2loopback-dkms
 ### Usage
 Create a virtual camera.
 ```sh
+# Close the virtual devices
 sudo modprobe -r v4l2loopback
+# Create a virtual device
 sudo modprobe v4l2loopback video_nr=2 card_label="Virtual Camera" exclusive_caps=1
+# Check the devices
+v4l2-ctl --list-devices
 ```
 To use this module to send processed images to the virtual camera.
 ```sh
