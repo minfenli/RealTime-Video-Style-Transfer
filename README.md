@@ -63,8 +63,10 @@ Create a virtual camera.
 ```sh
 # Close the virtual devices
 sudo modprobe -r v4l2loopback
-# Create a virtual device
+# Create a virtual device (Google Meet)
 sudo modprobe v4l2loopback video_nr=2 card_label="Virtual Camera" exclusive_caps=1
+# Create a virtual device (Teams)
+sudo modprobe v4l2loopback video_nr=2 card_label="Virtual Camera" exclusive_caps=0
 # Check the devices
 v4l2-ctl --list-devices
 ```
