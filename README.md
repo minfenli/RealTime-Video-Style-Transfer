@@ -36,11 +36,12 @@ If you want to run the module:
 python test.py
 ```
 ---
+
 ## Virtual Camera Creation
 
 We use **pyvirtualcam** to create a virtual camera if you want to use this module on Google Meet. 
 
-The package works on Windows, and Linux, but we only test on Ubuntu 20.04.3 LTS.
+The package works on Windows and Linux, but we only test on Ubuntu 20.04.3 LTS.
 
 ### Python Package
 
@@ -74,6 +75,8 @@ To use this module to send processed images to the virtual camera.
 ```sh
 python test.py --virtual_camera
 ```
+---
+
 ## Processing for Videos
 
 We use **imageio**, **moviepy** to collect the audio and infomation of the video, and **tqdm** is for checking the progress. 
@@ -90,3 +93,17 @@ Generate the styled video:
 ```sh
 python test.py --process_video --input <input_video> --output <output_video>
 ```
+---
+
+## Reference
+This system mainly incorporated matting and style-transfer modules, which were forked from following implementations:
+
+- [Usability wrapper for ReReVST](https://github.com/petteriTeikari/ReReVST-UX-Wrapper)
+
+- [Robust Video Matting (RVM)](https://github.com/PeterL1n/RobustVideoMatting)
+
+Here are the relevant papers:
+
+- [Consistent Video Style Transfer via Relaxation and Regularization](https://daooshee.github.io/ReReVST/)
+
+- [Robust High-Resolution Video Matting with Temporal Guidance](https://peterl1n.github.io/RobustVideoMatting/) 
