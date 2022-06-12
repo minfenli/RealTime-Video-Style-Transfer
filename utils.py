@@ -59,3 +59,17 @@ def transform_back_image(img):
 
 def get_fps(times):
     return np.round(1/np.mean(times), 2)
+
+def get_camera_frame():
+    count = 0
+    cap = cv2.VideoCapture(0)
+
+    while count != 10:
+        flag, frame = cap.read()
+        if flag:
+            cap.release()
+            return True, frame
+        count += 1
+
+    cap.release()
+    return False, None

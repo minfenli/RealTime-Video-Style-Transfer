@@ -34,7 +34,7 @@ print('Loaded matting model "{}"'.format(mat_checkpoint_path))
 ##  Parameters for the style transfer model
 ## --------------------------------------------
 
-style_img = "./style_transfer/inputs/styles/" + "pencil.png"#  "The_Great_Wave_off_Kanagawa.jpg" #"starry_night.jpg" # "pencil.png" # "mosaic_2.jpg"
+style_img = "./style_transfer/inputs/styles/" + "The_Great_Wave_off_Kanagawa.jpg"#  "The_Great_Wave_off_Kanagawa.jpg" #"starry_night.jpg" # "pencil.png" # "mosaic_2.jpg"
 style_checkpoint_path = "./style_transfer/test/Model/style_net-TIP-final.pth"
 style_img_resize_ratio = 1
 
@@ -58,7 +58,7 @@ print('Loaded style framework "{}"'.format(style_checkpoint_path))
 ##  Parameters for processing
 ## --------------------------------------------
 
-camera_resize_ratio = 1               # downsampling for a faster computing speed
+camera_resize_ratio = 2               # downsampling for a faster computing speed
 
 sample_frames = 20                    # not necessary if use_Global==False
 sample_frequency = 1                  # not necessary if use_Global==False
@@ -132,19 +132,130 @@ def frame_inpainting(frame, mask):
 
     return result 
 
+frame_counter = None
+
+def frame_processing(frame, init=False):
+    global use_Global, resize_ratio, sample_frames, sample_frequency, strict_alpha, inverse, camera_resize_ratio, restore_foreground_resolution, denoise, style_transfer, inpaint, print_fps
+
+    global image_rgb_np_old, frame_counter, frame_buffer, computing_times
+
+    if init or not frame_counter:
+        if camera_resize_ratio == 1:
+            restore_foreground_resolution = False
+        
+        frame_counter = 0
+        frame_buffer = []
+        computing_times = []
+
+    start = time.time()
+
+    # image preprocessing
+
+    frame_resize = cv2.resize(frame, (frame.shape[1]//camera_resize_ratio, frame.shape[0]//camera_resize_ratio), cv2.INTER_AREA)
+    image_rgb_np = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2RGB)
+
+    # denoise filter
+
+    if denoise:
+        if frame_counter != 0:
+            diff = np.sum(np.abs(image_rgb_np.astype('int')-image_rgb_np_old.astype('int')), axis = 2)/24.
+            diff[diff > 1] = 1
+            diff = diff**4
+            diff = np.expand_dims(diff, axis=-1)
+            image_rgb_np = image_rgb_np_old * (1-diff) + image_rgb_np * diff
+            image_rgb_np = image_rgb_np.astype("uint8")
+
+        image_rgb_np_old = image_rgb_np
+
+
+
+    # calculate the alpha per pixel for matting
+    
+    alpha = frame_matting(image_rgb_np)
+
+    # cv2.imshow("alpha", (alpha*255).astype('uint8'))
+    
+    if strict_alpha:
+        alpha = alpha.round()
+
+
+    # extract the foreground and the background
+    
+    foreground = (image_rgb_np * alpha).astype('uint8')
+
+    if not style_transfer:
+        # foreground as the matting result 
+        if restore_foreground_resolution:
+            alpha_origin_size = transform.resize(alpha, (frame.shape[0], frame.shape[1]))
+            image_rgb_np_origin_size = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            transfer_result = (alpha_origin_size*image_rgb_np_origin_size).astype('uint8')
+        else:
+            transfer_result = foreground
+    else:
+        if inpaint and not inverse:
+            background = frame_inpainting(image_rgb_np, alpha).astype('uint8')
+        else:
+            background = (image_rgb_np * (1-alpha)).astype('uint8')
+
+        # initialize the global features if "use_Global"
+
+        if use_Global and frame_counter == 0:
+            if inverse:
+                frame_global_sample([foreground])
+            else:
+                frame_global_sample([background])
+
+        # fuse the origin frame with the style transfer result
+
+        if inverse:
+            if restore_foreground_resolution:
+                transfer_result = (frame_style_transfer(foreground)*alpha).astype('uint8')
+                transfer_result = cv2.resize(transfer_result, (frame.shape[1], frame.shape[0]), cv2.INTER_AREA)
+                image_rgb_np_origin_size = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                alpha_origin_size = transform.resize(alpha, (frame.shape[0], frame.shape[1]))
+                transfer_result = (transfer_result + (1-alpha_origin_size)*image_rgb_np_origin_size).astype('uint8')
+            else:
+                transfer_result = (frame_style_transfer(foreground)*alpha + background).astype('uint8')
+        else:
+            if restore_foreground_resolution:
+                transfer_result = (frame_style_transfer(background)*(1-alpha)).astype('uint8')
+                transfer_result = cv2.resize(transfer_result, (frame.shape[1], frame.shape[0]), cv2.INTER_AREA)
+                image_rgb_np_origin_size = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                alpha_origin_size = transform.resize(alpha, (frame.shape[0], frame.shape[1]))
+                transfer_result = (transfer_result + alpha_origin_size*image_rgb_np_origin_size).astype('uint8')
+            else:
+                transfer_result = (frame_style_transfer(background)*(1-alpha) + foreground).astype('uint8')
+
+    # store the frame and calculate the global features if "use_Global" 
+    if style_transfer and use_Global and frame_counter%sample_frequency == 0:
+        if inverse:
+            frame_buffer.append(foreground)
+        else:
+            frame_buffer.append(background)
+        
+        if len(frame_buffer) == sample_frames:
+            print("Calculate Global")
+            frame_global_sample(frame_buffer)
+            del frame_buffer[:]
+
+    # calculate fps
+    if print_fps:
+        end = time.time()
+        computing_times.append(end - start)
+        if len(computing_times) > 10:
+            computing_times.pop(0)
+        print(get_fps(computing_times))
+
+    frame_counter += 1
+    
+    return cv2.cvtColor(transfer_result, cv2.COLOR_RGB2BGR)
+
 ## --------------------------------------------
 ##  Call this function for the use
 ## --------------------------------------------
 
 def run():
     global use_Global, resize_ratio, sample_frames, sample_frequency, strict_alpha, inverse, restore_foreground_resolution, denoise, style_transfer, inpaint, print_fps
-
-    frame_counter = 0
-    frame_buffer = []
-    computing_times = []
-
-    if camera_resize_ratio == 1:
-        restore_foreground_resolution = False
 
     cap = cv2.VideoCapture(0)
     print("Open Camera")
@@ -155,108 +266,16 @@ def run():
             if flag:
                 start = time.time()
 
-                # image preprocessing
-
-                frame_resize = cv2.resize(frame, (frame.shape[1]//camera_resize_ratio, frame.shape[0]//camera_resize_ratio), cv2.INTER_AREA)
-                image_rgb_np = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2RGB)
-
-                # denoise filter
-
-                if denoise:
-                    if frame_counter != 0:
-                        diff = np.sum(np.abs(image_rgb_np.astype('int')-image_rgb_np_old.astype('int')), axis = 2)/24.
-                        diff[diff > 1] = 1
-                        diff = diff**4
-                        diff = np.expand_dims(diff, axis=-1)
-                        image_rgb_np = image_rgb_np_old * (1-diff) + image_rgb_np * diff
-                        image_rgb_np = image_rgb_np.astype("uint8")
-
-                    image_rgb_np_old = image_rgb_np
-
-
-
-                # calculate the alpha per pixel for matting
-                
-                alpha = frame_matting(image_rgb_np)
-
-                # cv2.imshow("alpha", (alpha*255).astype('uint8'))
-                
-                if strict_alpha:
-                    alpha = alpha.round()
-
-
-                # extract the foreground and the background
-                
-                foreground = (image_rgb_np * alpha).astype('uint8')
-
-                if not style_transfer:
-                    # foreground as the matting result     
-                    if restore_foreground_resolution:
-                        alpha_origin_size = transform.resize(alpha, (frame.shape[0], frame.shape[1]))
-                        image_rgb_np_origin_size = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        transfer_result = (alpha_origin_size*image_rgb_np_origin_size).astype('uint8')
-                    else:
-                        transfer_result = foreground
-                else:
-                    if inpaint and not inverse:
-                        background = frame_inpainting(image_rgb_np, alpha).astype('uint8')
-                    else:
-                        background = (image_rgb_np * (1-alpha)).astype('uint8')
-
-                    # initialize the global features if "use_Global"
-
-                    if use_Global and frame_counter == 0:
-                        if inverse:
-                            frame_global_sample([foreground])
-                        else:
-                            frame_global_sample([background])
-
-                    # fuse the origin frame with the style transfer result
-
-                    if inverse:
-                        transfer_result = (frame_style_transfer(foreground)*alpha + background).astype('uint8')
-                    else:
-                        if restore_foreground_resolution:
-                            transfer_result = (frame_style_transfer(background)*(1-alpha)).astype('uint8')
-                            transfer_result = cv2.resize(transfer_result, (frame.shape[1], frame.shape[0]), cv2.INTER_AREA)
-                            image_rgb_np_origin_size = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                            alpha_origin_size = transform.resize(alpha, (frame.shape[0], frame.shape[1]))
-                            transfer_result = (transfer_result + alpha_origin_size*image_rgb_np_origin_size).astype('uint8')
-                        else:
-                            transfer_result = (frame_style_transfer(background)*(1-alpha) + foreground).astype('uint8')
+                transfer_result = frame_processing(frame)
                     
                 # display the frame
-
-                image_bgr_np=cv2.cvtColor(transfer_result, cv2.COLOR_RGB2BGR)
-                cv2.imshow("style transfer", image_bgr_np)
-
-                # store the frame and calculate the global features if "use_Global" 
-                if use_Global and frame_counter%sample_frequency == 0:
-                    if inverse:
-                        frame_buffer.append(foreground)
-                    else:
-                        frame_buffer.append(background)
-                    
-                    if len(frame_buffer) == sample_frames:
-                        print("Calculate Global")
-                        frame_global_sample(frame_buffer)
-                        del frame_buffer[:]
-
-                frame_counter += 1
-
-                # calculate fps
-                if print_fps:
-                    end = time.time()
-                    computing_times.append(end - start)
-                    if len(computing_times) > 10:
-                        computing_times.pop(0)
-                    print(get_fps(computing_times))
+                cv2.imshow("style transfer", transfer_result)
 
             else:
                 print("Something went wrong on the camera")
                 break
             
-            if cv2.waitKey(25) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
             
         cap.release()
@@ -266,24 +285,8 @@ def run():
         cap.release()
         cv2.destroyAllWindows()
 
-
-def get_camera_frame():
-    count = 0
-    cap = cv2.VideoCapture(0)
-
-    while count != 10:
-        flag, frame = cap.read()
-        if flag:
-            cap.release()
-            return True, frame
-        count += 1
-
-    cap.release()
-    return False, None
-
-
 def run_virtual_camera(device):
-    global use_Global, resize_ratio, sample_frames, sample_frequency, strict_alpha, inverse, restore_foreground_resolution, denoise, style_transfer, inpaint, print_fps
+    global camera_resize_ratio, restore_foreground_resolution, style_transfer
 
     import pyvirtualcam
 
@@ -303,13 +306,6 @@ def run_virtual_camera(device):
 
         cap = cv2.VideoCapture(0)
 
-        frame_counter = 0
-        frame_buffer = []
-        computing_times = []
-
-        if camera_resize_ratio == 1:
-            restore_foreground_resolution = False
-
         print("Open Camera")
 
         try:
@@ -318,102 +314,10 @@ def run_virtual_camera(device):
                 if flag:
                     start = time.time()
 
-                    # image preprocessing
-
-                    frame_resize = cv2.resize(frame, (frame.shape[1]//camera_resize_ratio, frame.shape[0]//camera_resize_ratio), cv2.INTER_AREA)
-                    image_rgb_np = cv2.cvtColor(frame_resize, cv2.COLOR_BGR2RGB)
-
-                    # denoise filter
-
-                    if denoise:
-                        if frame_counter != 0:
-                            diff = np.sum(np.abs(image_rgb_np.astype('int')-image_rgb_np_old.astype('int')), axis = 2)/24.
-                            diff[diff > 1] = 1
-                            diff = diff**4
-                            diff = np.expand_dims(diff, axis=-1)
-                            image_rgb_np = image_rgb_np_old * (1-diff) + image_rgb_np * diff
-                            image_rgb_np = image_rgb_np.astype("uint8")
-
-                        image_rgb_np_old = image_rgb_np
-
-
-
-                    # calculate the alpha per pixel for matting
-                    
-                    alpha = frame_matting(image_rgb_np)
-
-                    # cv2.imshow("alpha", (alpha*255).astype('uint8'))
-                    
-                    if strict_alpha:
-                        alpha = alpha.round()
-
-
-                    # extract the foreground and the background
-                    
-                    foreground = (image_rgb_np * alpha).astype('uint8')
-
-                    if not style_transfer:
-                        # foreground as the matting result 
-                        if restore_foreground_resolution:
-                            alpha_origin_size = transform.resize(alpha, (frame.shape[0], frame.shape[1]))
-                            image_rgb_np_origin_size = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                            transfer_result = (alpha_origin_size*image_rgb_np_origin_size).astype('uint8')
-                        else:
-                            transfer_result = foreground
-                    else:
-                        if inpaint and not inverse:
-                            background = frame_inpainting(image_rgb_np, alpha).astype('uint8')
-                        else:
-                            background = (image_rgb_np * (1-alpha)).astype('uint8')
-
-                        # initialize the global features if "use_Global"
-
-                        if use_Global and frame_counter == 0:
-                            if inverse:
-                                frame_global_sample([foreground])
-                            else:
-                                frame_global_sample([background])
-
-                        # fuse the origin frame with the style transfer result
-
-                        if inverse:
-                            transfer_result = (frame_style_transfer(foreground)*alpha + background).astype('uint8')
-                        else:
-                            if restore_foreground_resolution:
-                                transfer_result = (frame_style_transfer(background)*(1-alpha)).astype('uint8')
-                                transfer_result = cv2.resize(transfer_result, (frame.shape[1], frame.shape[0]), cv2.INTER_AREA)
-                                image_rgb_np_origin_size = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                                alpha_origin_size = transform.resize(alpha, (frame.shape[0], frame.shape[1]))
-                                transfer_result = (transfer_result + alpha_origin_size*image_rgb_np_origin_size).astype('uint8')
-                            else:
-                                transfer_result = (frame_style_transfer(background)*(1-alpha) + foreground).astype('uint8')
+                    transfer_result = frame_processing(frame)
                         
                     # display the frame
-
-                    image_bgr_np=cv2.cvtColor(transfer_result, cv2.COLOR_RGB2BGR)
-                    cv2.imshow("style transfer", image_bgr_np)
-
-                    # store the frame and calculate the global features if "use_Global" 
-                    if use_Global and frame_counter%sample_frequency == 0:
-                        if inverse:
-                            frame_buffer.append(foreground)
-                        else:
-                            frame_buffer.append(background)
-                        
-                        if len(frame_buffer) == sample_frames:
-                            print("Calculate Global")
-                            frame_global_sample(frame_buffer)
-                            del frame_buffer[:]
-
-                    frame_counter += 1
-
-                    # calculate fps
-                    if print_fps:
-                        end = time.time()
-                        computing_times.append(end - start)
-                        if len(computing_times) > 10:
-                            computing_times.pop(0)
-                        print(get_fps(computing_times))
+                    cv2.imshow("style transfer", transfer_result)
 
                     cam.send(transfer_result)
                     cam.sleep_until_next_frame()
@@ -422,7 +326,7 @@ def run_virtual_camera(device):
                     print("Something went wrong on the camera")
                     break
                 
-                if cv2.waitKey(25) & 0xFF == ord('q'):
+                if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
             cap.release()
             cv2.destroyAllWindows()
@@ -432,12 +336,75 @@ def run_virtual_camera(device):
             cap.release()
             cv2.destroyAllWindows()
 
+def transfer_video(input_file_path, out_file_path):
+    global use_Global, resize_ratio, sample_frames, sample_frequency, strict_alpha, inverse, restore_foreground_resolution, denoise, style_transfer, inpaint, print_fps
+
+    import imageio
+    import moviepy.editor as mp
+    from tqdm import tqdm
+
+    # Read input video
+    video_fname = os.path.split(input_file_path)[1]
+    if not os.path.exists(input_file_path):
+        exit('Input video %s does not exists (typo on your path?)' % (input_file_path))
+    video = imageio.get_reader(input_file_path)
+    fps = video.get_meta_data()['fps']
+    print('Opened input video "{}" for style transfer (fps = {})'.format(video_fname, fps))
+
+    my_clip = mp.VideoFileClip(input_file_path)
+    audio_track = my_clip.audio
+    if not audio_track:
+        print('No audio found from input video')
+    else:
+        audio_sampling_freq = audio_track.fps
+        audio_chs = audio_track.nchannels
+        print('Opened the audio of the input video fps = {} Hz, number of channels = {}'.format(audio_sampling_freq, audio_chs))
+
+    writer = imageio.get_writer("./temp.mp4", fps=fps)
+
+    try:
+        print(f'Style transfer for the file: {input_file_path}')
+        for i, frame in tqdm(enumerate(video)):
+            print(frame.shape)
+            image_rgb_np = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+            transfer_result = frame_processing(image_rgb_np)
+            cv2.imshow("style transfer", transfer_result)
+            writer.append_data(transfer_result[..., ::-1])
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        
+        writer.close()
+    except:
+        print("Exception while style transfer!!")
+        writer.close()
+
+        
+    if audio_track:
+        try:
+            saved_mp4_read_back = mp.VideoFileClip("./temp.mp4")
+            final_clip = saved_mp4_read_back.set_audio(audio_track)
+            final_clip.write_videofile(out_file_path, fps=fps, verbose=False, logger=None)
+            remove_status = os.remove("./temp.mp4")
+        except:
+            print("Exception while adding the audio back!!")
+
+
 if __name__ == '__main__':
     import argparse
+
     parser = argparse.ArgumentParser(description='RealTime Style Transfer from Camera Inputs')
     parser.add_argument("--virtual_camera", help="Send the results to the virtual camera", action="store_true")
+    parser.add_argument("--process_video", help="Load the video and store the result", action="store_true")
+    parser.add_argument("--input", help="Input file location is required if \"process_video\"", type=str, default=None)
+    parser.add_argument("--output", help="Output file location is required if \"process_video\"", type=str, default=None)
     args = parser.parse_args()
     if args.virtual_camera:
         run_virtual_camera('/dev/video2')
+    elif args.process_video:
+        if args.input and args.output:
+            transfer_video(args.input, args.output)
+        else:
+            print("Input file location and output file location are required.")
     else:
         run()

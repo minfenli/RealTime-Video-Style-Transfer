@@ -74,3 +74,19 @@ To use this module to send processed images to the virtual camera.
 ```sh
 python test.py --virtual_camera
 ```
+## Processing for Videos
+
+We use **imageio**, **moviepy** to collect the audio and infomation of the video, and **tqdm** is for checking the progress. 
+### Python Package
+
+Install **imageio**, **moviepy**, and **tqdm** from PyPI with:
+```sh
+pip install imageio
+pip install moviepy
+pip install tqdm
+```
+### Usage
+Generate the styled video:
+```sh
+python test.py --process_video --input <input_video> --output <output_video>
+```
