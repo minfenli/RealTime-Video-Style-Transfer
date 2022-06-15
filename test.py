@@ -34,7 +34,7 @@ print('Loaded matting model "{}"'.format(mat_checkpoint_path))
 ##  Parameters for the style transfer model
 ## --------------------------------------------
 
-style_img = "./style_transfer/inputs/styles/" + "mosaic_2.jpg"#  "The_Great_Wave_off_Kanagawa.jpg" #"starry_night.jpg" # "pencil.png" # "mosaic_2.jpg"
+style_img = "./style_transfer/inputs/styles/" + "The_Great_Wave_off_Kanagawa.jpg"#  "The_Great_Wave_off_Kanagawa.jpg" #"starry_night.jpg" # "pencil.png" # "mosaic_2.jpg"
 style_checkpoint_path = "./style_transfer/test/Model/style_net-TIP-final.pth"
 style_img_resize_ratio = 1
 
@@ -345,6 +345,7 @@ def transfer_video(input_file_path, out_file_path):
 
     # Read input video
     video_fname = os.path.split(input_file_path)[1]
+    video_temp_fname = video_fname.split(".")[0] + "_temp.mp4"
     if not os.path.exists(input_file_path):
         exit('Input video %s does not exists (typo on your path?)' % (input_file_path))
     video = imageio.get_reader(input_file_path)
@@ -360,7 +361,7 @@ def transfer_video(input_file_path, out_file_path):
         audio_chs = audio_track.nchannels
         print('Opened the audio of the input video fps = {} Hz, number of channels = {}'.format(audio_sampling_freq, audio_chs))
 
-    writer = imageio.get_writer("./temp.mp4", fps=fps)
+    writer = imageio.get_writer("./"+video_temp_fname, fps=fps)
 
     try:
         print(f'Style transfer for the file: {input_file_path}')
@@ -382,10 +383,10 @@ def transfer_video(input_file_path, out_file_path):
         
     if audio_track:
         try:
-            saved_mp4_read_back = mp.VideoFileClip("./temp.mp4")
+            saved_mp4_read_back = mp.VideoFileClip("./"+video_temp_fname)
             final_clip = saved_mp4_read_back.set_audio(audio_track)
             final_clip.write_videofile(out_file_path, fps=fps, verbose=False, logger=None)
-            remove_status = os.remove("./temp.mp4")
+            remove_status = os.remove("./"+video_temp_fname)
         except:
             print("Exception while adding the audio back!!")
 
