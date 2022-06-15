@@ -34,7 +34,7 @@ print('Loaded matting model "{}"'.format(mat_checkpoint_path))
 ##  Parameters for the style transfer model
 ## --------------------------------------------
 
-style_img = "./style_transfer/inputs/styles/" + "The_Great_Wave_off_Kanagawa.jpg"#  "The_Great_Wave_off_Kanagawa.jpg" #"starry_night.jpg" # "pencil.png" # "mosaic_2.jpg"
+style_img = "./style_transfer/inputs/styles/" + "mosaic_2.jpg"#  "The_Great_Wave_off_Kanagawa.jpg" #"starry_night.jpg" # "pencil.png" # "mosaic_2.jpg"
 style_checkpoint_path = "./style_transfer/test/Model/style_net-TIP-final.pth"
 style_img_resize_ratio = 1
 
@@ -134,7 +134,7 @@ def frame_inpainting(frame, mask):
 
 frame_counter = None
 
-def frame_processing(frame, init=False):
+def frame_processing(frame, init=False, rgb=False):
     global use_Global, resize_ratio, sample_frames, sample_frequency, strict_alpha, inverse, camera_resize_ratio, restore_foreground_resolution, denoise, style_transfer, inpaint, print_fps
 
     global image_rgb_np_old, frame_counter, frame_buffer, computing_times
@@ -160,7 +160,7 @@ def frame_processing(frame, init=False):
         if frame_counter != 0:
             diff = np.sum(np.abs(image_rgb_np.astype('int')-image_rgb_np_old.astype('int')), axis = 2)/24.
             diff[diff > 1] = 1
-            diff = diff**4
+            # diff = diff**4
             diff = np.expand_dims(diff, axis=-1)
             image_rgb_np = image_rgb_np_old * (1-diff) + image_rgb_np * diff
             image_rgb_np = image_rgb_np.astype("uint8")
@@ -248,7 +248,7 @@ def frame_processing(frame, init=False):
 
     frame_counter += 1
     
-    return cv2.cvtColor(transfer_result, cv2.COLOR_RGB2BGR)
+    return transfer_result if rgb else cv2.cvtColor(transfer_result, cv2.COLOR_RGB2BGR)
 
 ## --------------------------------------------
 ##  Call this function for the use
@@ -314,7 +314,7 @@ def run_virtual_camera(device):
                 if flag:
                     start = time.time()
 
-                    transfer_result = frame_processing(frame)
+                    transfer_result = frame_processing(frame, rgb=True)
                         
                     # display the frame
                     cv2.imshow("style transfer", transfer_result)
