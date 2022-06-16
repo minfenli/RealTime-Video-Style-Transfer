@@ -1,6 +1,6 @@
 # RealTime-Video-Style-Transfer
-
-A Style-Transfer modules for RealTime camera videos.
+![Teaser](/image/demo.gif)
+A Style-Transfer module for RealTime camera videos.
 
 ---
 ## Preparation & Installation 
